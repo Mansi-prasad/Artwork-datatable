@@ -7,7 +7,7 @@ A React + TypeScript application built with [Vite](https://vitejs.dev/) and [Pri
 - **PrimeReact DataTable** for modern, responsive tables.  
 - **Pagination** with server-side loading.  
 - **Multi-row selection** with a custom overlay panel to select a specific number of rows across multiple pages.  
-- **Responsive design** with Bootstrap 4 Light Purple PrimeReact theme.  
+- **Responsive design** with Light Purple PrimeReact theme.  
 - **TypeScript support** for strong type safety.
 
 ---

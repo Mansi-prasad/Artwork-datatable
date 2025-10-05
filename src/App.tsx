@@ -5,9 +5,10 @@ import { DataTable, type DataTablePageEvent } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { OverlayPanel } from "primereact/overlaypanel";
 // PrimeReact style
-import "primereact/resources/themes/bootstrap4-light-purple/theme.css";
+import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
+
 type Artwork = {
   id: number;
   title: string;
@@ -18,25 +19,23 @@ type Artwork = {
   date_end: number;
 };
 
-// Custom event type for row selection
-type RowSelectionChangeEvent<T extends any[]> = {
-  value: T;
-};
 function App() {
+
   const opRef = useRef<OverlayPanel>(null);
   // for table state
   const [artworks, setArtworks] = useState<Artwork[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [totalRecords, setTotalRecords] = useState<number>(0);
   const [first, setFirst] = useState<number>(0);
+
   // for row selection state
   const [rowsToSelect, setRowsToSelect] = useState<number>(0);
 
-//  row selection (global)
-  const [selectedRows, setSelectedRows] = useState<Artwork[]>([]);
+  // store only IDs
+  const [selectedRowIds, setSelectedRowIds] = useState<Set<number>>(new Set());
 
   // fetch data from API by page
-  const fetchArtworks = async (page: number, updateTable: boolean = true) => {
+  const fetchArtworks = async (page: number): Promise<Artwork[]> => {
     setLoading(true);
     try {
       const res = await fetch(`https://api.artic.edu/api/v1/artworks?page=${page}`);
@@ -52,10 +51,8 @@ function App() {
         date_end: item.date_end,
       }));
       
-    if (updateTable) {
       setArtworks(mapped);
       setTotalRecords(json.pagination.total);
-    }
     return mapped;
     } catch (error) {
       console.error("Error to fetch the data:", error);
@@ -77,50 +74,67 @@ function App() {
     fetchArtworks(newPage);
   };
 
-  const titleHeader = (
+  // Check if a row is selected
+  const isRowSelected = (row: Artwork) => selectedRowIds.has(row.id);
+
+  // Handle selection change (checkbox)
+  const onSelectionChange = (selected: Artwork[]) => {
+    const newSelectedIds = new Set(selectedRowIds);
+
+    // Add newly selected
+    selected.forEach((row) => newSelectedIds.add(row.id));
+
+    // Remove unselected rows from the current page
+    artworks.forEach((row) => {
+      if (!selected.some((r) => r.id === row.id)) {
+        newSelectedIds.delete(row.id);
+      }
+    });
+
+    setSelectedRowIds(newSelectedIds);
+  };
+
+  // Handle custom row selection from OverlayPanel
+const handleSubmit = async () => {
+    if (rowsToSelect <= 0) return;
+
+    // Fetch pages until required number of rows are selected
+    let remaining = rowsToSelect;
+    let page = 1;
+    const newSelectedIds = new Set(selectedRowIds);
+
+    while (remaining > 0 && newSelectedIds.size < totalRecords) {
+      const pageData = await fetchArtworks(page);
+
+      for (const row of pageData) {
+        if (remaining <= 0) break;
+        if (!newSelectedIds.has(row.id)) {
+          newSelectedIds.add(row.id);
+          remaining--;
+        }
+      }
+
+      page++;
+    }
+
+    setSelectedRowIds(newSelectedIds);
+    opRef.current?.hide();
+
+    // Reset to page 1 so first selected rows visible
+    setFirst(0);
+    fetchArtworks(1);
+
+  };
+
+    const titleHeader = (
     <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
       <i className="pi pi-angle-down" style={{ cursor: "pointer" }} onClick={(e) => opRef.current?.toggle(e)}></i>
       Title
     </span>
   );
-
-// handle row selection change
-   const onSelectionChange = (e: RowSelectionChangeEvent<Artwork[]>) => {
-    setSelectedRows(e.value ?? []);
-  };
-
-  // Row is selected if it exists in selectedRows
- const isRowSelected = (row: Artwork) =>
-    selectedRows.some((r) => r.id === row.id);
-
-  // Handle submit from OverlayPanel (custom number of rows)
-const handleSubmit = async () => {
-    if (rowsToSelect <= 0) return;
-
-    let remaining = rowsToSelect;
-    let page = 1;
-    const newSelected: Artwork[] = [];
-    // fetching pages until required number of rows are selected 
-    while (remaining > 0 && newSelected.length < totalRecords) {
-      const pageData = await fetchArtworks(page);
-
-      const rowsFromPage = pageData.slice(0, remaining);
-      newSelected.push(...rowsFromPage);
-
-      remaining -= rowsFromPage.length;
-      page++;
-    }
-
-    setSelectedRows(newSelected);
-    opRef.current?.hide();
-
-    // Go back to page 1 so user sees the first selected rows
-    setFirst(0);
-    fetchArtworks(1);
-  };
-
+  
   return (
-    <div>
+    <div className="table-con">
       <DataTable<any>
         value={artworks}
         lazy
@@ -131,7 +145,7 @@ const handleSubmit = async () => {
         onPage={onPage}
         loading={loading}
         selection={artworks.filter(isRowSelected)}
-        onSelectionChange={onSelectionChange}
+        onSelectionChange={(e) => onSelectionChange(e.value ?? [])}
         dataKey="id"
       >
         <Column selectionMode="multiple" headerStyle={{ width: "3rem" }}></Column>
@@ -148,16 +162,16 @@ const handleSubmit = async () => {
         <div>
           <input
             type="number"
-            min="1"
-            max={artworks.length}
+            min={1}
+            max={totalRecords}
             value={rowsToSelect || ""}
             onChange={(e) => setRowsToSelect(parseInt(e.target.value) || 0)}
-           className="row-selection-input"
-        placeholder="Select rows...."
+            className="row-selection-input"
+            placeholder="Select rows...."
           />
           <button
             onClick={handleSubmit}
-            className="btn"
+            className="sub-btn"
           >
             Submit
           </button>
